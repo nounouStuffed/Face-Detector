@@ -1,91 +1,117 @@
 import { config } from "../../../config/config.js";
 
-let lastFrameTime = performance.now();
-let fps = 0;
+let el = null;
 
-function setStatus(el, isOk, okText = "YES", badText = "NO") {
-  if (!el) return;
-  el.textContent = isOk ? okText : badText;
-  el.classList.remove("ok", "bad", "warn", "dim");
-  el.classList.add(isOk ? "ok" : "bad");
-}
+let fpsFrames = 0;
+let fpsLastT = performance.now();
+let fpsValue = 0;
 
-function setPercent(el, value01) {
-  if (!el) return;
-  const pct = Math.round((value01 ?? 0) * 100);
-  el.textContent = `${pct}%`;
-  el.classList.remove("ok", "bad", "warn", "dim");
+export function initDebugUI() {
+  const enabled = !!config?.debug?.metrics;
+  document.body.dataset.mode = enabled ? "debug" : "normal";
 
-  if (pct >= 70) el.classList.add("ok");
-  else if (pct >= 40) el.classList.add("warn");
-  else el.classList.add("bad");
-}
-
-function setNumber(el, v, digits = 3) {
-  if (!el) return;
-  el.textContent = (v === null || v === undefined || Number.isNaN(v)) ? "-" : Number(v).toFixed(digits);
-  el.classList.remove("ok", "bad", "warn", "dim");
-  el.classList.add("dim");
-}
-
-export function initDebugUI(canvas, video) {
-  document.body.dataset.mode = config.debug?.metrics ? "debug" : "normal";
-
-  if (config.debug?.metrics) {
-    canvas.width = config.debug.dataWidth ?? 1280;
-    canvas.height = config.debug.dataHeight ?? 720;
-  } else {
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+  if (!enabled) {
+    el = null;
+    return;
   }
+
+  el = {
+    camStatus: document.getElementById("camStatus"),
+    fps: document.getElementById("fps"),
+    modelStatus: document.getElementById("modelStatus"),
+    faceStatus: document.getElementById("faceStatus"),
+    confidence: document.getElementById("confidence"),
+    progress: document.getElementById("progress"),
+    rawP: document.getElementById("rawP"),
+    rawCX: document.getElementById("rawCX"),
+    rawCY: document.getElementById("rawCY"),
+    rawS: document.getElementById("rawS"),
+  };
 }
 
-export function updateFPS() {
+function setText(node, text, cls) {
+  if (!node) return;
+  node.textContent = text ?? "-";
+  node.classList.remove("ok", "bad", "warn", "dim");
+  if (cls) node.classList.add(cls);
+}
+
+function pct01(x) {
+  if (x == null || !Number.isFinite(x)) return "-";
+  return `${Math.round(x * 100)}%`;
+}
+
+function num3(x) {
+  if (x == null || !Number.isFinite(x)) return "-";
+  return x.toFixed(3);
+}
+
+export function updateDebugUI(state = {}) {
+  if (!el) return;
+
+  fpsFrames++;
   const now = performance.now();
-  fps = Math.round(1000 / (now - lastFrameTime));
-  lastFrameTime = now;
-  return fps;
-}
-
-export function updateDebugPanel({
-  cam,
-  model,
-  detected,
-  confidence01,
-  progressPct,
-  raw 
-}) {
-  if (!config.debug?.metrics) return;
-
-  setStatus(document.getElementById("camStatus"), !!cam, "OK", "NO");
-  setStatus(document.getElementById("modelStatus"), !!model, "YES", "NO");
-  setStatus(document.getElementById("faceStatus"), !!detected, "YES", "NO");
-
-  const fpsEl = document.getElementById("fps");
-  if (fpsEl) {
-    fpsEl.textContent = String(fps);
-    fpsEl.classList.remove("ok", "bad", "warn", "dim");
-    if (fps >= 24) fpsEl.classList.add("ok");
-    else if (fps >= 12) fpsEl.classList.add("warn");
-    else fpsEl.classList.add("bad");
+  const dt = now - fpsLastT;
+  if (dt > 500) {
+    fpsValue = Math.round((fpsFrames * 1000) / dt);
+    fpsFrames = 0;
+    fpsLastT = now;
   }
 
-  setPercent(document.getElementById("confidence"), confidence01 ?? 0);
+  const cameraReady = !!state.cameraReady;
+  const modelLoaded = !!state.modelLoaded;
 
-  const progressEl = document.getElementById("progress");
-  if (progressEl) {
-    progressEl.textContent = `${progressPct ?? 0}%`;
-    progressEl.classList.remove("ok", "bad", "warn", "dim");
-    if ((progressPct ?? 0) >= 80) progressEl.classList.add("ok");
-    else if ((progressPct ?? 0) >= 50) progressEl.classList.add("warn");
-    else progressEl.classList.add("bad");
+  const minC = config?.tracking?.data?.minConfidence ?? 0.3;      
+  const reqC = config?.tracking?.data?.reqConfidence ?? 0.7;      
+
+  const conf = state.box?.confidence ?? 0;
+
+  let faceLabel = "NO";
+  let faceCls = "bad";
+  let confCls = "bad";
+
+  if (!state.box) {
+    faceLabel = "NO";
+    faceCls = "bad";
+    confCls = "bad";
+  } else if (conf >= reqC) {
+    faceLabel = "YES";
+    faceCls = "ok";
+    confCls = "ok";
+  } else if (conf >= minC) {
+    faceLabel = "LIKELY";
+    faceCls = "warn";
+    confCls = "warn";
+  } else {
+    faceLabel = "NO";
+    faceCls = "bad";
+    confCls = "bad";
   }
 
-  const bar = document.getElementById("progressBar");
-  if (bar) bar.style.width = `${progressPct ?? 0}%`;
+  setText(el.camStatus, cameraReady ? "YES" : "NO", cameraReady ? "ok" : "bad");
+  setText(el.fps, String(fpsValue), fpsValue >= 20 ? "ok" : (fpsValue >= 10 ? "warn" : "bad"));
+  setText(el.modelStatus, modelLoaded ? "YES" : "NO", modelLoaded ? "ok" : "bad");
 
-  setNumber(document.getElementById("rawP"), raw?.p, 3);
-  setNumber(document.getElementById("rawCX"), raw?.cx, 3);
-  setNumber(document.getElementById("rawCY"), raw?.cy, 3);
-  setNumber(document.getElementById("rawS"), raw?.s, 3);
+  setText(el.faceStatus, faceLabel, faceCls);
+  setText(el.confidence, `${pct01(conf)}`, confCls);
+
+  
+  let progress = 0;
+  if (cameraReady) progress += 25;
+  if (modelLoaded) progress += 25;
+  if (state.inferBusy === false) progress += 25;
+  if (state.box && conf >= minC) progress += 25;
+
+  setText(
+    el.progress,
+    `${progress}%`,
+    progress >= 75 ? "ok" : (progress >= 50 ? "warn" : "bad")
+  );
+
+  const raw = state.box?.raw;
+  setText(el.rawP, raw ? num3(raw.p) : "-", raw ? confCls : "dim");
+  setText(el.rawCX, raw ? num3(raw.cx) : "-", "dim");
+  setText(el.rawCY, raw ? num3(raw.cy) : "-", "dim");
+  setText(el.rawS, raw ? num3(raw.s) : "-", "dim");
 }
+

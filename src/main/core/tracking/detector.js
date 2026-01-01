@@ -1,90 +1,100 @@
-import * as tf from "@tensorflow/tfjs";
-import { frameToTensor } from "../../../vision/tensor.js"; 
+import { FaceDetection } from "@mediapipe/face_detection";
+import { config } from '../../../config/config.js';
 
-let faceModel = null;
+
+let detector = null;
+let lastBox = null;
+let lastCanvasW = 0;
+let lastCanvasH = 0;
+
+let minConfidence = config.tracking.data.minDetecConfidence;
+let model = config.tracking.data.model;
+
+
+function getConfidence(d) {
+  const s = d?.score;
+  if (Array.isArray(s)) return s[0] ?? 0;
+  if (typeof s === "number") return s;
+
+  const ga = d?.V?.[0]?.ga;
+  if (typeof ga === "number") return ga;
+
+  return 1;
+}
+
+function parseBoundingBox(d, canvasW, canvasH) {
+  const bb = d?.locationData?.relativeBoundingBox || d?.boundingBox || d?.BoundingBox;
+  if (!bb) return null;
+
+  const widthN = bb.width;
+  const heightN = bb.height;
+
+  const xMinN =
+    bb.xMin ?? bb.xmin ?? (bb.xCenter != null ? (bb.xCenter - widthN / 2) : null);
+  const yMinN =
+    bb.yMin ?? bb.ymin ?? (bb.yCenter != null ? (bb.yCenter - heightN / 2) : null);
+
+  if (xMinN == null || yMinN == null || widthN == null || heightN == null) return null;
+
+  const confidence = getConfidence(d);
+
+  const w = widthN * canvasW;
+  const h = heightN * canvasH;
+  const size = Math.max(w, h);
+
+  const x = xMinN * canvasW;
+  const y = yMinN * canvasH;
+
+  const cx = (x + w / 2) / canvasW;
+  const cy = (y + h / 2) / canvasH;
+  const s = size / Math.min(canvasW, canvasH);
+
+  if (![x, y, size, confidence, cx, cy, s].every(Number.isFinite)) return null;
+
+  return {
+    x,
+    y,
+    size,
+    confidence,
+    raw: { p: confidence, cx, cy, s }
+  };
+}
 
 export async function loadModel() {
-  try {
-    faceModel = await tf.loadLayersModel("/models/face/model.json");
-    console.log("[detector] Model loaded");
-  } catch (e) {
-    console.warn("[detector] Model load failed, fallback naive", e);
-    faceModel = null;
-  }
-}
+  if (detector) return;
 
+  detector = new FaceDetection({
+    locateFile: (file) =>
+      new URL(
+        `../../../../node_modules/@mediapipe/face_detection/${file}`,
+        import.meta.url
+      ).toString(),
+  });
 
-function naiveDetect(imageData) {
-  const { width, height, data } = imageData;
+  detector.setOptions({
+    model: model,              
+    minDetectionConfidence: minConfidence,
+  });
 
-  let best = null;
-  let bestScore = 0;
-  const size = Math.floor(Math.min(width, height) * 0.4);
-
-  for (let y = height * 0.2; y < height * 0.6; y += 20) {
-    for (let x = width * 0.2; x < width * 0.6; x += 20) {
-      let score = 0;
-      for (let j = 0; j < size; j += 10) {
-        for (let i = 0; i < size; i += 10) {
-          const idx = ((y + j) * width + (x + i)) * 4;
-          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-          score += Math.abs(r - g) + Math.abs(g - b);
-        }
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        best = { x, y, size };
-      }
+  detector.onResults((res) => {
+    const dets = res?.detections || [];
+    if (!dets.length) {
+      lastBox = null;
+      return;
     }
-  }
+    lastBox = parseBoundingBox(dets[0], lastCanvasW, lastCanvasH);
+  });
 
-  return best;
+  console.log("[detector] MediaPipe FaceDetection ready");
 }
 
-/**
- * Detect face in a canvas frame
- * @param {CanvasRenderingContext2D} ctx
- * @param {object} prevBox Optional previous box (for fallback / tracking)
- * @returns {object} { x, y, size } bounding box or null
- */
-export async function detectFace(ctx, prevBox = null) {
-  if (!ctx) return null;
+export async function detectFaceFromVideo(videoEl, canvasW, canvasH) {
+  if (!detector) return null;
+  if (!videoEl || videoEl.readyState < 2) return null;
 
-  const W = ctx.canvas.width;
-  const H = ctx.canvas.height;
+  lastCanvasW = canvasW;
+  lastCanvasH = canvasH;
 
-  const imageData = ctx.getImageData(0, 0, W, H);
-
-  if (faceModel) {
-    try {
-      const sizeSq = Math.min(W, H);
-      const x0 = Math.floor((W - sizeSq) / 2);
-      const y0 = Math.floor((H - sizeSq) / 2);
-
-      const tensor = frameToTensor(ctx, x0, y0, sizeSq);
-      const output = await faceModel.predict(tensor).data();
-      tensor.dispose();
-
-      const [p, cx, cy, s] = output;
-
-      if (p < 0.6) {
-        const fallback = prevBox || naiveDetect(imageData);
-        return fallback ? { ...fallback, confidence: p, raw: { p, cx, cy, s } } : null;
-      }
-
-      // Convert normalized outputs to pixels
-      const size = Math.max(30, s * sizeSq);
-      const x = (x0 + cx * sizeSq) - size / 2;
-      const y = (y0 + cy * sizeSq) - size / 2;
-
-      return { x, y, size, confidence: p, raw: { p, cx, cy, s } };
-    } catch (err) {
-      console.warn("[detector] Model inference failed, fallback to naive", err);
-      return naiveDetect(imageData);
-    }
-  }
-
-  // No model loaded → fallback
-  return naiveDetect(imageData);
+  await detector.send({ image: videoEl });
+  return lastBox;
 }
-

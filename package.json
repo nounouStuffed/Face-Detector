@@ -4,7 +4,7 @@
   "description": "Expermiental nodeJS face pattern recognition program trained with TensorFlow",
   "license": "ISC",
   "author": "nounouStuffed",
-  "type": "commonjs",  
+  "type": "commonjs",
   "main": "src/index.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron src/index.js\"",
@@ -12,6 +12,8 @@
     "start": "electron ."
   },
   "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/face_detection": "^0.4.1646425229",
     "@tensorflow/tfjs": "^4.22.0",
     "express": "^5.2.1"
   },
