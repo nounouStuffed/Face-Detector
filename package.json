@@ -1,0 +1,24 @@
+{
+  "name": "face-detector",
+  "version": "0.0.1",
+  "description": "Expermiental nodeJS face pattern recognition program trained with TensorFlow",
+  "license": "ISC",
+  "author": "nounouStuffed",
+  "type": "commonjs",  
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron src/index.js\"",
+    "build": "vite build",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.7",
+    "vite": "^7.3.0",
+    "wait-on": "^9.0.3"
+  }
+}

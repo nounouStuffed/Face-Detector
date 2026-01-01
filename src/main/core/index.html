@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Face Detector</title>
+
+  <style>
+    body {
+      margin: 0;
+      background: #0e1116;
+      color: #e5e7eb;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    /* ===== Layout ===== */
+    body[data-mode="normal"] #hud {
+      display: none;
+    }
+
+    body[data-mode="normal"] #app {
+      display: block;
+      height: 100vh;
+    }
+
+    body[data-mode="normal"] #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+
+    body[data-mode="debug"] #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    body[data-mode="debug"] #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      flex: 1;
+    }
+
+
+    /* ===== Canvas ===== */
+    canvas {
+      background: #000;
+    }
+
+    /* ===== HUD ===== */
+    #hud {
+      width: 380px;             
+      min-width: 380px;
+      padding: 18px;
+      background: rgba(30, 34, 40, 0.95);
+      border-left: 1px solid #2a2f36;
+    }
+
+
+    #hud h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      color: #9ca3af;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;    
+      font-size: 12px;
+    }
+
+    .metric span:last-child {
+      min-width: 90px;
+      text-align: right;
+    }
+
+    .progress-bar {
+      margin-top: 12px;
+      height: 6px;
+      background: #1f2937;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      transition: width 0.25s ease;
+    }
+
+    #video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ok { color: #22c55e !important; }    
+    .bad { color: #ef4444 !important; }    
+    .warn { color: #f59e0b !important; }  
+    .dim { color: #9ca3af !important; }    
+
+  </style>
+</head>
+
+<body data-mode="normal">
+  <div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="hud">
+      <h3>FACE PIPELINE STATUS</h3>
+
+      <div class="metric"><span>Camera</span><span id="camStatus">NO</span></div>
+      <div class="metric"><span>FPS</span><span id="fps">0</span></div>
+      <div class="metric"><span>Model</span><span id="modelStatus">NO</span></div>
+      <div class="metric"><span>Face</span><span id="faceStatus">NO</span></div>
+      <div class="metric"><span>Confidence</span><span id="confidence">0%</span></div>
+      <div class="metric"><span>Progress</span><span id="progress">0%</span></div>
+      <div class="metric"><span>p</span><span id="rawP">-</span></div>
+      <div class="metric"><span>cx</span><span id="rawCX">-</span></div>
+      <div class="metric"><span>cy</span><span id="rawCY">-</span></div>
+      <div class="metric"><span>s</span><span id="rawS">-</span></div>
+
+      <div class="progress-bar">
+        <div id="progressBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <video id="video" autoplay playsinline muted></video>
+
+  <script type="module" src="./camera.js"></script>
+</body>
+</html>
