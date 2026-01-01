@@ -1,13 +1,15 @@
 import { loadModel, detectFaceFromVideo } from "./tracking/detector.js";
+import { inferExpression } from "./tracking/expressionEngine.js";
 import { track } from "./tracking/tracker.js";
 import { drawBox } from "./tracking/overlay.js";
 import { drawVideoCover } from "./ui/canvas.js";
-import { initDebugUI, updateDebugUI } from "./ui/debugPanel.js";
+import { initDebugUI, updateDebugUI } from "./ui/panel.js";
 
 import { config } from "../../config/config.js";
 
 let video, canvas, ctx;
 let currentBox = null;
+let currentExpression = null;
 
 let inferBusy = false; 
 let lastInfer = 0;
@@ -45,6 +47,7 @@ function loop(t) {
     box: currentBox,
     inferBusy,
     inferPeriod: INFER_EVERY_MS,
+    expression: currentExpression,
   });
 
   if (!inferBusy && (t - lastInfer) > INFER_EVERY_MS) {
@@ -54,11 +57,14 @@ function loop(t) {
     detectFaceFromVideo(video, canvas.width, canvas.height)
       .then((box) => {
         currentBox = track(box);
+        if (config?.modules?.expressions && currentBox?.landmarks) {
+          currentExpression = inferExpression(currentBox);
+        } else {
+          currentExpression = null;
+        }
       })
       .catch((e) => console.warn("mp detect error", e))
-      .finally(() => {
-        inferBusy = false;
-      });
+      .finally(() => { inferBusy = false; });
   }
 
   requestAnimationFrame(loop);

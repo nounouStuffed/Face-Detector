@@ -1,5 +1,5 @@
 const { app, BrowserWindow } = require("electron");
-const { createMainWindow } = require("./main/window");
+const { createMainWindow } = require("./main/window.js");
 
 app.whenReady().then(() => {
   createMainWindow();

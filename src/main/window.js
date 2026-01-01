@@ -4,9 +4,11 @@ const path = require("path");
 function createMainWindow() {
   const isDev = !require("electron").app.isPackaged;
 
+  const { width, height } = require("electron").screen.getPrimaryDisplay().workAreaSize;
+
   const win = new BrowserWindow({
-    width: 1000,
-    height: 800,
+    width: Math.max(1400, Math.floor(width * 0.8)),
+    height: Math.max(900, Math.floor(height * 0.85)),
     backgroundColor: "#111",
     webPreferences: {
       preload: path.resolve(process.cwd(), "src/main/preload.cjs"),

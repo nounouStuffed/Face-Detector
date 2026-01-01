@@ -8,6 +8,10 @@ export const config = {
         metrics: true,
     },
 
+    modules: {
+        expressions: true,
+    },
+
     tracking: {
         data: {
             inferPeriod: 80,
